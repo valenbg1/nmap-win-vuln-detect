@@ -19,8 +19,8 @@ detected method.
 
 --- SCRIPT BASADO en http-auth-finder
 -- @usage
--- nmap -p 80 --script http-auth-finder <ip>
---
+-- nmap -p445 --script dates.nse <ip> --script-args 'csvPath=<path_to_csv>'
+-- nmap -p445 --script dates.nse 192.168.56.101 --script-args 'csvPath=vulns.csv'
 -- @output
 -- PORT   STATE SERVICE
 -- 80/tcp open  http
@@ -40,6 +40,7 @@ end
 
 action = function(host, port)
     local fecha_server = fechaServer(host,port)
+    local csvPath = stdnse.get_script_args('csvPath')
     print("FECHA SERVER: "..os.date("%x",fecha_server))
 
     --TODO: for urls en csv coger fecha url y comparar
