@@ -7,6 +7,8 @@ local tab = require "tab"
 local table = require "table"
 local smb = require "smb"
 local smb2 = require "smb2"
+local url = require "url"
+
 
 
 
@@ -41,7 +43,7 @@ action = function(host, port)
     print("FECHA SERVER: "..os.date("%x",fecha_server))
 
     --TODO: for urls en csv coger fecha url y comparar
-    local d = getDate("http://localhost:8080/5-Microsoft%20Security%20Bulletin%20MS17-006.html")
+    local d = getDate("http://localhost/5-Microsoft%20Security%20Bulletin%20MS17-006.html")
     local fecha_url = dat(d)
     print("FECHA URL: "..os.date("%x",fecha_url))
     local isServerUpdated = serverActualizado(fecha_server,fecha_url)
@@ -149,20 +151,13 @@ function serverActualizado(fechaServer, fechaBoletin)
 end
 
 -- Función que dada una url (con formato que incluya el puerto) devuelve la url dividia en partes
-function splitUrl(url)
+function splitUrl(urld)
   local host, port, path
 
-  i, j = string.find(url,"://")
-  k, l = string.find(url,":%d")
-  host = string.sub(url, j+1, k-1)
-  i, j = string.find(url,":%d%d")
-  k, l = string.find(url,"%d%d/")
-  port = string.sub(url, i+1, l-1)
-  path = string.sub(url,l+1,string.len(url))
-  
-  --print("host: "..host)
-  --print("port: "..port)
-  --print("path: "..path)
+  urld = url.parse(urld)
+  host = urld.authority
+  port = "80"
+  path = urld.path
 
   local list = {host=host,path=path,port=port}
 
@@ -171,8 +166,9 @@ end
 
 -- Función que dada una url de Microsoft extrae la fecha.
 function getDate(url)
-  --print("URL: "..url) 
+  print("URL: "..url) 
   local url = splitUrl(url)
+  print("host: "..url.host.."port: "..url.port.."path: "..url.path)
   local get = http.generic_request(url.host,url.port,"GET",url.path)
   local body = get.body
   --print("Body"..body)
