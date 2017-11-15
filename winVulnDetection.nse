@@ -43,31 +43,31 @@ action = function(host, port)
     local fecha_server = fechaServer(host,port)
     local csvPath = stdnse.get_script_args('csvPath')
     print("FECHA SERVER: "..os.date("%x",fecha_server))
-    print("CSVPATH: "..csvPath)
+    --print("CSVPATH: "..csvPath)
     --TODO: for urls en csv coger fecha url y comparar
     local lineasCsv = lines_from(csvPath)
     for k,lineas in pairs(lineasCsv) do
       if k ~= 1 then
         local date, bulletinId
         date = lineas[5]
-        print("DATE..."..date)
+        --print("DATE"..date)
         bulletinId = lineas[1]
         local isServerUpdated = serverActualizado(fecha_server,dat(date))
-        print("¿Esta el server actualizado para el bulletin "..bulletinId.." con fecha "..date.."?:")
+        print("Esta el server actualizado para el bulletin "..bulletinId.." con fecha "..date.."?:")
         print("Respuesta: ")
         print(isServerUpdated)
       end
       
     end
 
-    local d = getDate("http://localhost/5-Microsoft%20Security%20Bulletin%20MS17-006.html")
-    local fecha_url = dat(d)
-    print("FECHA URL: "..os.date("%x",fecha_url))
-    local isServerUpdated = serverActualizado(fecha_server,fecha_url)
-    if isServerUpdated
-      then print("El server está actualizado")
-    else print("El server no está actualizado")
-    end
+    -- local d = getDate("http://localhost/5-Microsoft%20Security%20Bulletin%20MS17-006.html")
+    -- local fecha_url = dat(d)
+    -- print("FECHA URL: "..os.date("%x",fecha_url))
+    -- local isServerUpdated = serverActualizado(fecha_server,fecha_url)
+    -- if isServerUpdated
+    --   then print("El server está actualizado")
+    -- else print("El server no está actualizado")
+    -- end
 end
 
 -- Función que devuelve fecha en formato os.time de reinicio del servidor obtenida con smb2
@@ -85,7 +85,7 @@ function fechaServer(host, port)
             smbstate['start_date'], smbstate['start_time'])
     date = smbstate['date']
     -- Hardcoded
-    start_date = "2017-07-20 09:29:49" --smbstate['start_date']
+    start_date = "2014-07-20 09:29:49" --smbstate['start_date']
     stdnse.debug2("Negotiation suceeded")
     start_date = string.sub(start_date,1,10)
     local date = os.time{day=tonumber(string.sub(start_date,9,10)), year=tonumber(string.sub(start_date,1,4)), month=tonumber(string.sub(start_date,6,7))}
@@ -182,9 +182,9 @@ function splitUrl(urld)
   end 
 
   local i,j 
-  print("HOSTTTTTT "..host)
+  --print("HOSTTTTTT "..host)
   i,j = string.find(host,":")
-  print(i,j)
+ --print(i,j)
   if(i ~= nil)
     then host = string.sub(host,1,i-1)
   end
@@ -197,9 +197,9 @@ end
 
 -- Función que dada una url de Microsoft extrae la fecha.
 function getDate(url)
-  print("URL: "..url) 
+  --print("URL: "..url) 
   local url = splitUrl(url)
-  print("host: "..url.host.." port: "..url.port.." path: "..url.path)
+  --print("host: "..url.host.." port: "..url.port.." path: "..url.path)
   local get = http.generic_request(url.host,url.port,"GET",url.path)
   local body = get.body
   --print("Body"..body)
@@ -223,11 +223,11 @@ end
 
 -- Code modified from https://stackoverflow.com/questions/11201262/how-to-read-data-from-a-file-in-lua
 function lines_from(file)
-  print("LINES FROM")
+ --print("LINES FROM")
   if not file_exists(file) then return {} end
   lines = {}
   for line in io.lines(file) do 
-    print("not empty")
+    --print("not empty")
     table.insert(lines, ParseCSVLine(line,";"))
   end
   return lines
