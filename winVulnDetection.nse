@@ -54,7 +54,8 @@ action = function(host, port)
         bulletinId = lineas[1]
         local isServerUpdated = serverActualizado(fecha_server,dat(date))
         print("¿Esta el server actualizado para el bulletin "..bulletinId.." con fecha "..date.."?:")
-        print("Respuesta: "..isServerUpdated.toString())
+        print("Respuesta: ")
+        print(isServerUpdated)
       end
       
     end
@@ -140,7 +141,7 @@ function dat(fech)
   if(string.find(fech, "November"))
     then month = "11"
   end
-  if(string.find(fech, "November"))
+  if(string.find(fech, "December"))
     then month = "12"
   end
 
@@ -158,7 +159,7 @@ end
 function serverActualizado(fechaServer, fechaBoletin)
   daysfrom = os.difftime(fechaServer, fechaBoletin) / (24 * 60 * 60) -- seconds in a day
   wholedays = math.floor(daysfrom)
-  print(wholedays)
+  --print(wholedays)
   local actualizado = true;
   if wholedays<0 
     then actualizado = false;
