@@ -19,8 +19,9 @@ detected method.
 
 --- SCRIPT BASADO en http-auth-finder
 -- @usage
--- nmap -p445 --script dates.nse <ip> --script-args 'csvPath=<path_to_csv>'
--- nmap -p445 --script dates.nse 192.168.56.101 --script-args 'csvPath=vulns.csv'
+-- nmap -p445 --script winVulnDetection.nse <ip> --script-args 'csvPath=<path_to_csv>'
+-- @usageExample
+-- nmap -p445 --script winVulnDetection.nse 192.168.56.101 --script-args 'csvPath=vulns.csv'
 -- @output
 -- PORT   STATE SERVICE
 -- 80/tcp open  http
@@ -42,8 +43,22 @@ action = function(host, port)
     local fecha_server = fechaServer(host,port)
     local csvPath = stdnse.get_script_args('csvPath')
     print("FECHA SERVER: "..os.date("%x",fecha_server))
-
+    print("CSVPATH: "..csvPath)
     --TODO: for urls en csv coger fecha url y comparar
+    local lineasCsv = lines_from(csvPath)
+    for k,lineas in pairs(lineasCsv) do
+      if k ~= 1 then
+        local date, bulletinId
+        date = lineas[5]
+        print("DATE..."..date)
+        bulletinId = lineas[1]
+        local isServerUpdated = serverActualizado(fecha_server,dat(date))
+        print("¿Esta el server actualizado para el bulletin "..bulletinId.." con fecha "..date.."?:")
+        print("Respuesta: "..isServerUpdated.toString())
+      end
+      
+    end
+
     local d = getDate("http://localhost/5-Microsoft%20Security%20Bulletin%20MS17-006.html")
     local fecha_url = dat(d)
     print("FECHA URL: "..os.date("%x",fecha_url))
@@ -154,10 +169,24 @@ end
 -- Función que dada una url (con formato que incluya el puerto) devuelve la url dividia en partes
 function splitUrl(urld)
   local host, port, path
-
   urld = url.parse(urld)
   host = urld.authority
-  port = "80"
+  --TODO: change 
+  port = urld.port
+  if(port==nil)
+    then if(urld.scheme=="https")
+        then port = "443"
+       else port = "80"
+       end
+  end 
+
+  local i,j 
+  print("HOSTTTTTT "..host)
+  i,j = string.find(host,":")
+  print(i,j)
+  if(i ~= nil)
+    then host = string.sub(host,1,i-1)
+  end
   path = urld.path
 
   local list = {host=host,path=path,port=port}
@@ -169,7 +198,7 @@ end
 function getDate(url)
   print("URL: "..url) 
   local url = splitUrl(url)
-  print("host: "..url.host.."port: "..url.port.."path: "..url.path)
+  print("host: "..url.host.." port: "..url.port.." path: "..url.path)
   local get = http.generic_request(url.host,url.port,"GET",url.path)
   local body = get.body
   --print("Body"..body)
@@ -193,6 +222,7 @@ end
 
 -- Code modified from https://stackoverflow.com/questions/11201262/how-to-read-data-from-a-file-in-lua
 function lines_from(file)
+  print("LINES FROM")
   if not file_exists(file) then return {} end
   lines = {}
   for line in io.lines(file) do 
