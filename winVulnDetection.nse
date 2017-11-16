@@ -15,19 +15,15 @@ NMAP NSE script that detects potential recent vulnerabilities published by Micro
 ]]
 
 
---- 
--- Script inspired on http-auth-finder
---
+---
 -- @usage
--- nmap --script winVulnDetection --script-args 'csvPath=<path>' <target>
+-- nmap --script winVulnDetection --script-args "csvPath=<path>" <target>
+--
 -- @usageExample
--- nmap --script=./winVulnDetection.nse --script-args 'csvPath=./vulns.csv' localhost
+-- nmap --script=./winVulnDetection.nse --script-args "csvPath=./vulns.csv" localhost
+--
 -- @output
--- PORT   STATE SERVICE
--- 80/tcp open  http
--- |   datesSearch:
--- |   http://localhost/4-Microsoft%20Security%20Bulletin%20Summary%20for%20March%202017.html    FORM
--- |   2017-11-09                                                                                DATE
+--
 ---
 
 
@@ -40,30 +36,31 @@ hostrule = function(host)
 end
 
 action = function(host)
-  local fecha_server = fechaServer(host)
+  local uptime_server = fechaServer(host)
   local csvPath = stdnse.get_script_args("csvPath")
   local output = stdnse.output_table()
   local lineasCsv = lines_from(csvPath)
   
   stdnse.debug("CSV path: %s", csvPath)
-  stdnse.debug("Host uptime: %s", os.date("%x", fecha_server))
+  stdnse.debug("Host uptime: %s", os.date("%x", uptime_server))
   
   -- TODO: for urls en csv coger fecha url y comparar.
   for n, linea in pairs(lineasCsv) do
     if n ~= 1 then
-      local pubDate = linea[5]
       local bulletinId = linea[1]
+      local restartRequired = linea[3]
+      local pubDate = linea[5]
       
-      if not serverActualizado(fecha_server, toDate(pubDate)) then
+      if restartRequired:lower() == "yes" and not serverActualizado(uptime_server, toDate(pubDate)) then
         output[bulletinId] = stdnse.output_table()
 		output[bulletinId].severity = linea[2]
-		output[bulletinId].restartRequired = linea[3]
+		output[bulletinId].restartRequired = restartRequired
 		output[bulletinId].link = linea[4]
 		output[bulletinId].publicationDate = pubDate
 		output[bulletinId].summary = linea[6]
       else
-        stdnse.debug("Host not vulnerable to %s, with publication date %s", bulletinId,
-		  pubDate)
+        stdnse.debug("Host not vulnerable to %s, with publication date: %s and restart required: %s", bulletinId,
+		  pubDate, restartRequired)
       end
     end 
   end
@@ -92,66 +89,66 @@ function fechaServer(host)
                   smbstate['date'], smbstate['time'],
                   smbstate['start_date'], smbstate['start_time'])
     stdnse.debug("Negotiation suceeded")
-    local start_date = string.sub(smbstate['start_date'], 1, 10)
-    
-    -- TODO se ha probado con p.e. días que no sean de dos dígitos (3/2/1999)?
-    return os.time{day=tonumber(string.sub(start_date, 9, 10)), year=tonumber(string.sub(start_date, 1, 4)), month=tonumber(string.sub(start_date, 6, 7))}
+
+    return toDate(smbstate['start_date'])
   else
     return "Protocol negotiation failed (SMB2)"
   end
 end
 
--- Función que devuelve un objeto os.time a partir del string de fecha obtenido de la web.
+-- Función que devuelve un objeto os.time a partir del string de fecha obtenido de la web o por SMB2.
 function toDate(dateStr)
-  local it = string.gmatch(dateStr, "%S+")
-  local m = it():lower()
-  local d = tonumber(it():sub(1, -2))
-  local y = tonumber(it())
+  local m, d, y
 
-  if (m == "january")
-    then m = 1
-  elseif (m == "february")
-    then m = 2
-  elseif (m == "march")
-    then m = 3
-  elseif (m == "april")
-    then m = 4
-  elseif (m == "may")
-    then m = 5
-  elseif (m == "june")
-    then m = 6
-  elseif (m == "july")
-    then m = 7
-  elseif (m == "august")
-    then m = 8
-  elseif (m == "september")
-    then m = 9
-  elseif (m == "october")
-    then m = 10
-  elseif (m == "november")
-    then m = 11
-  elseif (m == "december")
-    then m = 12
+  if string.find(dateStr, "-") then
+    local it = string.gmatch(dateStr, "[^-%s]+")
+    y = tonumber(it())
+    m = tonumber(it())
+    d = tonumber(it())
+  else
+    local it = string.gmatch(dateStr, "%S+")
+    m = it():lower()
+    d = tonumber(it():sub(1, -2))
+    y = tonumber(it())
+    
+    if (m == "january")
+      then m = 1
+    elseif (m == "february")
+      then m = 2
+    elseif (m == "march")
+      then m = 3
+    elseif (m == "april")
+      then m = 4
+    elseif (m == "may")
+      then m = 5
+    elseif (m == "june")
+      then m = 6
+    elseif (m == "july")
+      then m = 7
+    elseif (m == "august")
+      then m = 8
+    elseif (m == "september")
+      then m = 9
+    elseif (m == "october")
+      then m = 10
+    elseif (m == "november")
+      then m = 11
+    elseif (m == "december")
+      then m = 12
+    end
   end
 
   return os.time{day=d, year=y, month=m}
 end
 
---Función que devuelve un booleano tras pasarle la fehca del server y del boletín, ambas en formato os.time
+--Función que devuelve un booleano tras pasarle la fecha de uptime del server y del boletín, ambas en formato os.time
 --Ej:
 --fechaServer = os.time{day=15, year=2017, month=2}
 --fechaBoletin = os.time{day=15, year=2016, month=2}
 --serverActualizado(fechaServer,fechaBoletin)
 --Devuelve true
 function serverActualizado(fechaServer, fechaBoletin)
-  daysfrom = os.difftime(fechaServer, fechaBoletin) / (24 * 60 * 60) -- seconds in a day
-  wholedays = math.floor(daysfrom)
-  --print(wholedays)
-  local actualizado = true;
-  if wholedays<0 
-    then actualizado = false;
-  end
-  return actualizado
+  return os.difftime(fechaServer, fechaBoletin) >= 0
 end
 
 -- Función que dada una url (con formato que incluya el puerto) devuelve la url dividia en partes
