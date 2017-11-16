@@ -45,21 +45,25 @@ action = function(host)
   local output = stdnse.output_table()
   local lineasCsv = lines_from(csvPath)
   
-  stdnse.debug("Server date: %s", os.date("%x", fecha_server))
   stdnse.debug("CSV path: %s", csvPath)
+  stdnse.debug("Host uptime: %s", os.date("%x", fecha_server))
   
   -- TODO: for urls en csv coger fecha url y comparar.
-  for k, linea in pairs(lineasCsv) do
-    if k ~= 1 then
-      local pubDate, bulletinId
-      pubDate = linea[5]
-      --print("DATE"..date)
-      bulletinId = linea[1]
+  for n, linea in pairs(lineasCsv) do
+    if n ~= 1 then
+      local pubDate = linea[5]
+      local bulletinId = linea[1]
       
       if not serverActualizado(fecha_server, toDate(pubDate)) then
-        output[bulletinId] = "VULNERABLE!"
+        output[bulletinId] = stdnse.output_table()
+		output[bulletinId].severity = linea[2]
+		output[bulletinId].restartRequired = linea[3]
+		output[bulletinId].link = linea[4]
+		output[bulletinId].publicationDate = pubDate
+		output[bulletinId].summary = linea[6]
       else
-        stdnse.debug("Host not vulnerable to %s", bulletinId)
+        stdnse.debug("Host not vulnerable to %s, with publication date %s", bulletinId,
+		  pubDate)
       end
     end 
   end
@@ -78,7 +82,7 @@ end
 
 -- Función que devuelve fecha en formato os.time de uptime del servidor obtenida según smb2.time.nse
 function fechaServer(host)
-  local smbstate, status, overrides, start_date
+  local smbstate, status, overrides
   overrides = {}
   status, smbstate = smb.start(host)
   status = smb2.negotiate_v2(smbstate, overrides)
@@ -88,7 +92,7 @@ function fechaServer(host)
                   smbstate['date'], smbstate['time'],
                   smbstate['start_date'], smbstate['start_time'])
     stdnse.debug("Negotiation suceeded")
-    start_date = string.sub(smbstate['start_date'], 1, 10)
+    local start_date = string.sub(smbstate['start_date'], 1, 10)
     
     -- TODO se ha probado con p.e. días que no sean de dos dígitos (3/2/1999)?
     return os.time{day=tonumber(string.sub(start_date, 9, 10)), year=tonumber(string.sub(start_date, 1, 4)), month=tonumber(string.sub(start_date, 6, 7))}
