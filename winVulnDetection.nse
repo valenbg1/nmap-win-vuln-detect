@@ -10,12 +10,10 @@ local smb2 = require "smb2"
 local url = require "url"
 
 
-
-
 description = [[
-Spiders a web site to find web pages requiring form-based or HTTP-based authentication. The results are returned in a table with each url and the
-detected method.
+NMAP NSE script that detects potential recent vulnerabilities published by Microsoft in Windows machines.
 ]]
+
 
 --- SCRIPT BASADO en http-auth-finder
 -- @usage
@@ -35,12 +33,12 @@ author = "Ignacio Marín & Valentín Blanco"
 categories = {"discovery", "safe"}
 
 
-portrule = function(host,port)
+hostrule = function(host)
   return smb.get_port(host) ~= nil
 end
 
-action = function(host, port)
-    local fecha_server = fechaServer(host,port)
+action = function(host)
+    local fecha_server = fechaServer(host)
     local csvPath = stdnse.get_script_args('csvPath')
     print("FECHA SERVER: "..os.date("%x",fecha_server))
     --print("CSVPATH: "..csvPath)
@@ -70,34 +68,26 @@ action = function(host, port)
     -- end
 end
 
--- Función que devuelve fecha en formato os.time de reinicio del servidor obtenida con smb2
-
-function fechaServer(host, port)
-  local smbstate, status, overrides, date, start_date
+-- Función que devuelve fecha en formato os.time de uptime del servidor obtenida con smb2.time.nse
+function fechaServer(host)
+  local smbstate, status, overrides, start_date
   overrides = {}
   status, smbstate = smb.start(host)
   status = smb2.negotiate_v2(smbstate, overrides)
 
-
   if status then
     stdnse.debug2("SMB2: Date: %s (%s) Start date:%s (%s)",
-                        smbstate['date'], smbstate['time'],
-            smbstate['start_date'], smbstate['start_time'])
-    date = smbstate['date']
-    -- Hardcoded
-    start_date = "2014-07-20 09:29:49" --smbstate['start_date']
+                  smbstate['date'], smbstate['time'],
+                  smbstate['start_date'], smbstate['start_time'])
     stdnse.debug2("Negotiation suceeded")
-    start_date = string.sub(start_date,1,10)
-    local date = os.time{day=tonumber(string.sub(start_date,9,10)), year=tonumber(string.sub(start_date,1,4)), month=tonumber(string.sub(start_date,6,7))}
-    return date
+    start_date = string.sub(smbstate['start_date'], 1, 10)
+    return os.time{day=tonumber(string.sub(start_date, 9, 10)), year=tonumber(string.sub(start_date, 1, 4)), month=tonumber(string.sub(start_date, 6, 7))}
   else
-    
-    return " Protocol negotiation failed (SMB2)"
+    return "Protocol negotiation failed (SMB2)"
   end
 end
 
 --Funcion que devuelve un objeto de tipo os.time a partir del string de fecha obtenido de la web
-
 function dat(fech)
   local month = nil
 
@@ -155,7 +145,6 @@ end
 --fechaBoletin = os.time{day=15, year=2016, month=2}
 --serverActualizado(fechaServer,fechaBoletin)
 --Devuelve true
-
 function serverActualizado(fechaServer, fechaBoletin)
   daysfrom = os.difftime(fechaServer, fechaBoletin) / (24 * 60 * 60) -- seconds in a day
   wholedays = math.floor(daysfrom)
@@ -211,7 +200,6 @@ function getDate(url)
     return fecha
 end
 
-
 -- Code added for parsing csv
 -- Usage: 
 --
@@ -220,7 +208,6 @@ end
 -- for i, v in ipairs(lineas) do print(i, v[5]) end
 -- -- dates are 5
 -- print(lineas[2][5])
-
 -- Code modified from https://stackoverflow.com/questions/11201262/how-to-read-data-from-a-file-in-lua
 function lines_from(file)
  --print("LINES FROM")
@@ -238,11 +225,8 @@ function file_exists(file)
   if f then f:close() end
   return f ~= nil
 end
----------------------------------------------------
-
 
 -- Code from http://lua-users.org/wiki/LuaCsv
-
 function ParseCSVLine (line,sep) 
   local res = {}
   local pos = 1
@@ -282,4 +266,3 @@ function ParseCSVLine (line,sep)
   end
   return res
 end
-------------------------------------------------------------------------------------------------------
