@@ -15,18 +15,20 @@ NMAP NSE script that detects potential recent vulnerabilities published by Micro
 ]]
 
 
---- SCRIPT BASADO en http-auth-finder
+--- 
+-- Script inspired on http-auth-finder
+--
 -- @usage
--- nmap -p445 --script winVulnDetection.nse <ip> --script-args 'csvPath=<path_to_csv>'
+-- nmap --script winVulnDetection --script-args 'csvPath=<path>' <target>
 -- @usageExample
--- nmap -p445 --script winVulnDetection.nse 192.168.56.101 --script-args 'csvPath=vulns.csv'
+-- nmap --script=./winVulnDetection.nse --script-args 'csvPath=./vulns.csv' localhost
 -- @output
 -- PORT   STATE SERVICE
 -- 80/tcp open  http
 -- |   datesSearch:
 -- |   http://localhost/4-Microsoft%20Security%20Bulletin%20Summary%20for%20March%202017.html    FORM
 -- |   2017-11-09                                                                                DATE
---
+---
 
 
 author = "Ignacio Marín & Valentín Blanco"
@@ -38,37 +40,43 @@ hostrule = function(host)
 end
 
 action = function(host)
-    local fecha_server = fechaServer(host)
-    local csvPath = stdnse.get_script_args('csvPath')
-    print("FECHA SERVER: "..os.date("%x",fecha_server))
-    --print("CSVPATH: "..csvPath)
-    --TODO: for urls en csv coger fecha url y comparar
-    local lineasCsv = lines_from(csvPath)
-    for k,lineas in pairs(lineasCsv) do
-      if k ~= 1 then
-        local date, bulletinId
-        date = lineas[5]
-        --print("DATE"..date)
-        bulletinId = lineas[1]
-        local isServerUpdated = serverActualizado(fecha_server,dat(date))
-        print("Esta el server actualizado para el bulletin "..bulletinId.." con fecha "..date.."?:")
-        print("Respuesta: ")
-        print(isServerUpdated)
-      end
+  local fecha_server = fechaServer(host)
+  local csvPath = stdnse.get_script_args("csvPath")
+  local output = stdnse.output_table()
+  local lineasCsv = lines_from(csvPath)
+  
+  stdnse.debug("Server date: %s", os.date("%x", fecha_server))
+  stdnse.debug("CSV path: %s", csvPath)
+  
+  -- TODO: for urls en csv coger fecha url y comparar.
+  for k, linea in pairs(lineasCsv) do
+    if k ~= 1 then
+      local pubDate, bulletinId
+      pubDate = linea[5]
+      --print("DATE"..date)
+      bulletinId = linea[1]
       
-    end
+      if not serverActualizado(fecha_server, toDate(pubDate)) then
+        output[bulletinId] = "VULNERABLE!"
+      else
+        stdnse.debug("Host not vulnerable to %s", bulletinId)
+      end
+    end 
+  end
+  
+  return output
 
-    -- local d = getDate("http://localhost/5-Microsoft%20Security%20Bulletin%20MS17-006.html")
-    -- local fecha_url = dat(d)
-    -- print("FECHA URL: "..os.date("%x",fecha_url))
-    -- local isServerUpdated = serverActualizado(fecha_server,fecha_url)
-    -- if isServerUpdated
-    --   then print("El server está actualizado")
-    -- else print("El server no está actualizado")
-    -- end
+  -- local d = getDate("http://localhost/5-Microsoft%20Security%20Bulletin%20MS17-006.html")
+  -- local fecha_url = dat(d)
+  -- print("FECHA URL: "..os.date("%x",fecha_url))
+  -- local isServerUpdated = serverActualizado(fecha_server,fecha_url)
+  -- if isServerUpdated
+  --   then print("El server está actualizado")
+  -- else print("El server no está actualizado")
+  -- end
 end
 
--- Función que devuelve fecha en formato os.time de uptime del servidor obtenida con smb2.time.nse
+-- Función que devuelve fecha en formato os.time de uptime del servidor obtenida según smb2.time.nse
 function fechaServer(host)
   local smbstate, status, overrides, start_date
   overrides = {}
@@ -76,67 +84,53 @@ function fechaServer(host)
   status = smb2.negotiate_v2(smbstate, overrides)
 
   if status then
-    stdnse.debug2("SMB2: Date: %s (%s) Start date:%s (%s)",
+    stdnse.debug("SMB2: Date: %s (%s) Start date:%s (%s)",
                   smbstate['date'], smbstate['time'],
                   smbstate['start_date'], smbstate['start_time'])
-    stdnse.debug2("Negotiation suceeded")
+    stdnse.debug("Negotiation suceeded")
     start_date = string.sub(smbstate['start_date'], 1, 10)
+    
+    -- TODO se ha probado con p.e. días que no sean de dos dígitos (3/2/1999)?
     return os.time{day=tonumber(string.sub(start_date, 9, 10)), year=tonumber(string.sub(start_date, 1, 4)), month=tonumber(string.sub(start_date, 6, 7))}
   else
     return "Protocol negotiation failed (SMB2)"
   end
 end
 
---Funcion que devuelve un objeto de tipo os.time a partir del string de fecha obtenido de la web
-function dat(fech)
-  local month = nil
+-- Función que devuelve un objeto os.time a partir del string de fecha obtenido de la web.
+function toDate(dateStr)
+  local it = string.gmatch(dateStr, "%S+")
+  local m = it():lower()
+  local d = tonumber(it():sub(1, -2))
+  local y = tonumber(it())
 
-  i, j = string.find(fech, "%d%d")
-  local day = string.sub(fech, i, j)
-
-  i, j = string.find(fech, "%d%d%d%d")
-  local year = string.sub(fech, i, j)
-
-
-  if(string.find(fech, "January"))
-    then month = "1"
-  end
-  if(string.find(fech, "February"))
-    then month = "2"
-  end
-  if(string.find(fech, "March"))
-    then month = "3"
-  end
-  if(string.find(fech, "April"))
-    then month = "4"
-  end
-  if(string.find(fech, "May"))
-    then month = "5"
-  end
-  if(string.find(fech, "June"))
-    then month = "6"
-  end
-  if(string.find(fech, "July"))
-    then month = "7"
-  end
-  if(string.find(fech, "August"))
-    then month = "8"
-  end
-  if(string.find(fech, "September"))
-    then month = "9"
-  end
-  if(string.find(fech, "October"))
-    then month = "10"
-  end
-  if(string.find(fech, "November"))
-    then month = "11"
-  end
-  if(string.find(fech, "December"))
-    then month = "12"
+  if (m == "january")
+    then m = 1
+  elseif (m == "february")
+    then m = 2
+  elseif (m == "march")
+    then m = 3
+  elseif (m == "april")
+    then m = 4
+  elseif (m == "may")
+    then m = 5
+  elseif (m == "june")
+    then m = 6
+  elseif (m == "july")
+    then m = 7
+  elseif (m == "august")
+    then m = 8
+  elseif (m == "september")
+    then m = 9
+  elseif (m == "october")
+    then m = 10
+  elseif (m == "november")
+    then m = 11
+  elseif (m == "december")
+    then m = 12
   end
 
-  local date = os.time{day=tonumber(day), year=tonumber(year), month=tonumber(month)}
-  return date
+  return os.time{day=d, year=y, month=m}
 end
 
 --Función que devuelve un booleano tras pasarle la fehca del server y del boletín, ambas en formato os.time
