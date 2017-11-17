@@ -1,6 +1,6 @@
 Bulletin ID;Severity;Restart;Link;Last updated date;Title and summary
-MS17-006;Critical;Yes;http://localhost:8080/Microsoft%20Security%20Bulletin%20MS17-006%20-%20Critical%20_%20Microsoft%20Docs.html;March 14, 2017;Cumulative Security Update for Internet Explorer (4013073)
-MS17-014;Important;Yes;http://localhost:8080/Microsoft%20Security%20Bulletin%20MS17-014%20-%20Important%20_%20Microsoft%20Docs.html;April 11, 2017;Security Update for Microsoft Office (4013241)
-MS17-021;Important;No;http://localhost:8080/Microsoft%20Security%20Bulletin%20MS17-021%20-%20Important%20_%20Microsoft%20Docs.html;April 11, 2017;Security Update for Windows DirectShow (4010318)
-MS17-023;Critical;Yes;http://localhost:8080/Microsoft%20Security%20Bulletin%20MS17-023%20-%20Critical%20_%20Microsoft%20Docs.html;March 14, 2017;Security Update for Adobe Flash Player (4014329)
-MS16-155;Important;Yes;http://localhost:8080/Microsoft%20Security%20Bulletin%20MS16-155%20-%20Important%20_%20Microsoft%20Docs.html;February 23, 2017;Security Update for .NET Framework (3205640)
+MS17-006;Critical;Yes;http://localhost/Microsoft%20Security%20Bulletin%20MS17-006%20-%20Critical%20_%20Microsoft%20Docs.html;March 14, 2017;Cumulative Security Update for Internet Explorer (4013073)
+MS17-014;Important;Yes;http://localhost/Microsoft%20Security%20Bulletin%20MS17-014%20-%20Important%20_%20Microsoft%20Docs.html;April 11, 2017;Security Update for Microsoft Office (4013241)
+MS17-021;Important;No;http://localhost/Microsoft%20Security%20Bulletin%20MS17-021%20-%20Important%20_%20Microsoft%20Docs.html;April 11, 2017;Security Update for Windows DirectShow (4010318)
+MS17-023;Critical;Yes;http://localhost/Microsoft%20Security%20Bulletin%20MS17-023%20-%20Critical%20_%20Microsoft%20Docs.html;March 14, 2017;Security Update for Adobe Flash Player (4014329)
+MS16-155;Important;Yes;http://localhost/Microsoft%20Security%20Bulletin%20MS16-155%20-%20Important%20_%20Microsoft%20Docs.html;February 23, 2017;Security Update for .NET Framework (3205640)

@@ -14,7 +14,7 @@ NMAP NSE script that detects potential recent vulnerabilities published by Micro
 -- nmap --script winVulnDetection --script-args "csvPath=<path>, updateCsvFile=[yes|no]" <target>
 --
 -- @usageExample
--- nmap --script=./winVulnDetection.nse --script-args "csvPath=./vulns.csv, updateCsv=yes" localhost
+-- nmap --script=./winVulnDetection.nse --script-args "csvPath=./vulns.csv, updateCsvFile=yes" localhost
 --
 -- @output
 -- Host script results:
