@@ -1,13 +1,7 @@
 local http = require "http"
---local httpspider = require "httpspider"
---local nmap = require "nmap"
---local shortport = require "shortport"
 local stdnse = require "stdnse"
---local tab = require "tab"
---local table = require "table"
 local smb = require "smb"
 local smb2 = require "smb2"
---local url = require "url"
 
 
 description = [[
@@ -17,13 +11,26 @@ NMAP NSE script that detects potential recent vulnerabilities published by Micro
 
 ---
 -- @usage
--- nmap --script winVulnDetection --script-args "csvPath=<path>" <target>
+-- nmap --script winVulnDetection --script-args "csvPath=<path>, updateCsvFile=[yes|no]" <target>
 --
 -- @usageExample
--- nmap --script=./winVulnDetection.nse --script-args "csvPath=./vulns.csv" localhost
+-- nmap --script=./winVulnDetection.nse --script-args "csvPath=./vulns.csv, updateCsv=yes" localhost
 --
 -- @output
---
+-- Host script results:
+-- | winVulnDetection: 
+-- |   MS17-006: 
+-- |     severity: Critical
+-- |     restartRequired: Yes
+-- |     link: https://docs.microsoft.com/en-us/security-updates/SecurityBulletins/2017/MS17-006
+-- |     lastUpdated: March 14, 2017
+-- |     summary: Cumulative Security Update for Internet Explorer (4013073)
+-- |   MS17-014: 
+-- |     severity: Important
+-- |     restartRequired: Yes
+-- |     link: https://docs.microsoft.com/en-us/security-updates/SecurityBulletins/2017/MS17-014
+-- |     lastUpdated: April 11, 2017
+-- |_    summary: Security Update for Microsoft Office (4013241)
 ---
 
 
@@ -38,6 +45,7 @@ end
 action = function(host)
   local uptimeServer = smb2HostUptime(host)
   local csvPath = stdnse.get_script_args("csvPath") or "vulns.csv"
+  local updateCsvFile = stdnse.get_script_args("updateCsvFile") or "yes"
   local output = stdnse.output_table()
   
   stdnse.debug("CSV path: %s", csvPath)
@@ -46,11 +54,13 @@ action = function(host)
   stdnse.debug("Reading CSV file")
   local csv = readCsv(csvPath)
   
-  stdnse.debug("Updating CSV with data from Microsoft's bulletins")
+  stdnse.debug("Updating CSV data with data from Microsoft's bulletins")
   updateCsv(csv)
   
-  stdnse.debug("Saving updated CSV")
-  writeCsv(csv, csvPath)
+  if updateCsvFile:lower() == "yes" then
+    stdnse.debug("Saving updated CSV")
+    writeCsv(csv, csvPath)
+  end
   
   for i, vuln in pairs(csv) do
     if i > 1 then
@@ -100,29 +110,29 @@ function toDate(dateStr)
     m, d, y = string.match(dateStr, "(%a+)%s(%d+),%s(%d+)")
     m = m:lower()
     
-    if (m == "january")
+    if m == "january"
       then m = 1
-    elseif (m == "february")
+    elseif m == "february"
       then m = 2
-    elseif (m == "march")
+    elseif m == "march"
       then m = 3
-    elseif (m == "april")
+    elseif m == "april"
       then m = 4
-    elseif (m == "may")
+    elseif m == "may"
       then m = 5
-    elseif (m == "june")
+    elseif m == "june"
       then m = 6
-    elseif (m == "july")
+    elseif m == "july"
       then m = 7
-    elseif (m == "august")
+    elseif m == "august"
       then m = 8
-    elseif (m == "september")
+    elseif m == "september"
       then m = 9
-    elseif (m == "october")
+    elseif m == "october"
       then m = 10
-    elseif (m == "november")
+    elseif m == "november"
       then m = 11
-    elseif (m == "december")
+    elseif m == "december"
       then m = 12
     end
   end
@@ -130,29 +140,32 @@ function toDate(dateStr)
   return os.time{day=d, year=y, month=m}
 end
 
---Función que devuelve un booleano tras pasarle la fecha de uptime del host y del boletín, ambas en formato os.time.
+-- Función que devuelve un booleano tras pasarle la fecha de uptime del host y del boletín, ambas en formato os.time.
+-- Considera que si bulletinDate y hostDate son el mismo día, el host no está actualizado y por lo tanto es vulnerable.
 --
---Ej:
---hostDate = os.time{day=15, year=2017, month=2}
---bulletinDate = os.time{day=15, year=2016, month=2}
---hostUpdated(hostDate,bulletinDate)
---Devuelve true
+-- Ej:
+-- hostDate = os.time{day=15, year=2017, month=2}
+-- bulletinDate = os.time{day=15, year=2016, month=2}
+-- hostUpdated(hostDate,bulletinDate)
+-- Devuelve true
 function hostUpdated(hostDate, bulletinDate)
-  return os.difftime(hostDate, bulletinDate) >= 0
+  return os.difftime(hostDate, bulletinDate) > 0
 end
 
 -- Función que dada una URL de boletín de Microsoft extrae la fecha más reciente.
 function extractLastDate(url)
   local urlBody = http.get_url(url).body
   
-  -- Se saca la fecha de la web.
-  local pubDate = string.match(urlBody, "Published:%s(%a+%s%d+,%s%d+)")
-  local updDate = string.match(urlBody, "Updated:%s(%a+%s%d+,%s%d+)")
-  
-  if updDate then
-    return updDate
-  else
-    return pubDate
+  if urlBody ~= nil then
+    -- Se saca la fecha de la web.
+    local pubDate = string.match(urlBody, "Published:%s(%a+%s%d+,%s%d+)")
+    local updDate = string.match(urlBody, "Updated:%s(%a+%s%d+,%s%d+)")
+      
+    if updDate then
+      return updDate
+    else
+      return pubDate
+    end
   end
 end
 
@@ -191,11 +204,13 @@ end
 function updateCsv(csv)
   for i, vuln in pairs(csv) do
     if i > 1 then
-      lastDate = extractLastDate(vuln.link)
-      stdnse.debug("%s CSV last updated date: %s, Microsoft's bulletin last updated date: %s",
-        vuln.bulletinId, vuln.lastUpdated, lastDate)
-        
-      vuln.lastUpdated = lastDate or vuln.lastUpdated
+      local lastDate = extractLastDate(vuln.link)
+      
+      if lastDate ~= nil then
+        stdnse.debug("%s CSV last updated date: %s, Microsoft's bulletin last updated date: %s",
+          vuln.bulletinId, vuln.lastUpdated, lastDate)
+        vuln.lastUpdated = lastDate
+      end
     end
   end
 end
