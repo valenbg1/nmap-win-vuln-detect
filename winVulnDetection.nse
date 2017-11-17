@@ -4,10 +4,10 @@ local http = require "http"
 --local shortport = require "shortport"
 local stdnse = require "stdnse"
 --local tab = require "tab"
-local table = require "table"
+--local table = require "table"
 local smb = require "smb"
 local smb2 = require "smb2"
-local url = require "url"
+--local url = require "url"
 
 
 description = [[
@@ -27,7 +27,7 @@ NMAP NSE script that detects potential recent vulnerabilities published by Micro
 ---
 
 
-author = "Ignacio Marín & Valentín Blanco"
+author = "Valentín Blanco & Ignacio Marín"
 categories = {"discovery", "safe"}
 
 
@@ -36,43 +36,43 @@ hostrule = function(host)
 end
 
 action = function(host)
-  local uptime_server = fechaServer(host)
-  local csvPath = stdnse.get_script_args("csvPath")
+  local uptimeServer = smb2HostUptime(host)
+  local csvPath = stdnse.get_script_args("csvPath") or "vulns.csv"
   local output = stdnse.output_table()
-  local lineasCsv = readCsv(csvPath)
   
   stdnse.debug("CSV path: %s", csvPath)
-  stdnse.debug("Host uptime: %s", os.date("%x", uptime_server))
+  stdnse.debug("Host uptime: %s", os.date("%x", uptimeServer))
   
-  -- TODO: for urls en csv coger fecha url y comparar.
-  for n, linea in pairs(lineasCsv) do
-    if n ~= 1 then
-      local bulletinId = linea[1]
-      local restartRequired = linea[3]
-      local pubDate = linea[5]
-      
-      stdnse.debug("%s CSV publication date: %s", bulletinId, pubDate)
-      stdnse.debug("%s Microsoft last update date: %s", bulletinId, os.date("%x", getDate(linea[4])))
-      
-      if restartRequired:lower() == "yes" and not serverActualizado(uptime_server, toDate(pubDate)) then
-        output[bulletinId] = stdnse.output_table()
-		output[bulletinId].severity = linea[2]
-		output[bulletinId].restartRequired = restartRequired
-		output[bulletinId].link = linea[4]
-		output[bulletinId].publicationDate = pubDate
-		output[bulletinId].summary = linea[6]
+  stdnse.debug("Reading CSV file")
+  local csv = readCsv(csvPath)
+  
+  stdnse.debug("Updating CSV with data from Microsoft's bulletins")
+  updateCsv(csv)
+  
+  stdnse.debug("Saving updated CSV")
+  writeCsv(csv, csvPath)
+  
+  for i, vuln in pairs(csv) do
+    if i > 1 then
+      if vuln.restartRequired:lower() == "yes" and not hostUpdated(uptimeServer, toDate(vuln.lastUpdated)) then
+        output[vuln.bulletinId] = stdnse.output_table()
+        output[vuln.bulletinId].severity = vuln.severity
+        output[vuln.bulletinId].restartRequired = vuln.restartRequired
+        output[vuln.bulletinId].link = vuln.link
+        output[vuln.bulletinId].lastUpdated = vuln.lastUpdated
+        output[vuln.bulletinId].summary = vuln.summary
       else
-        stdnse.debug("Host not vulnerable to %s, with publication date: %s and restart required: %s", bulletinId,
-		  pubDate, restartRequired)
+        stdnse.debug("Host not vulnerable to %s, with publication date: %s and restart required: %s",
+          vuln.bulletinId, vuln.lastUpdated, vuln.restartRequired)
       end
-    end 
+    end
   end
   
   return output
 end
 
 -- Función que devuelve fecha en formato os.time de uptime del servidor obtenida según smb2.time.nse
-function fechaServer(host)
+function smb2HostUptime(host)
   local smbstate, status, overrides
   overrides = {}
   status, smbstate = smb.start(host)
@@ -80,11 +80,11 @@ function fechaServer(host)
 
   if status then
     stdnse.debug("SMB2: Date: %s (%s) Start date:%s (%s)",
-                  smbstate['date'], smbstate['time'],
-                  smbstate['start_date'], smbstate['start_time'])
+                  smbstate["date"], smbstate["time"],
+                  smbstate["start_date"], smbstate["start_time"])
     stdnse.debug("Negotiation suceeded")
 
-    return toDate(smbstate['start_date'])
+    return toDate(smbstate["start_date"])
   else
     return "Protocol negotiation failed (SMB2)"
   end
@@ -95,15 +95,10 @@ function toDate(dateStr)
   local m, d, y
 
   if string.find(dateStr, "-") then
-    local it = string.gmatch(dateStr, "[^-%s]+")
-    y = tonumber(it())
-    m = tonumber(it())
-    d = tonumber(it())
+    y, m, d = string.match(dateStr, "(%d+)-(%d+)-(%d+)")
   else
-    local it = string.gmatch(dateStr, "%S+")
-    m = it():lower()
-    d = tonumber(it():sub(1, -2))
-    y = tonumber(it())
+    m, d, y = string.match(dateStr, "(%a+)%s(%d+),%s(%d+)")
+    m = m:lower()
     
     if (m == "january")
       then m = 1
@@ -135,52 +130,83 @@ function toDate(dateStr)
   return os.time{day=d, year=y, month=m}
 end
 
---Función que devuelve un booleano tras pasarle la fecha de uptime del server y del boletín, ambas en formato os.time
+--Función que devuelve un booleano tras pasarle la fecha de uptime del host y del boletín, ambas en formato os.time.
+--
 --Ej:
---fechaServer = os.time{day=15, year=2017, month=2}
---fechaBoletin = os.time{day=15, year=2016, month=2}
---serverActualizado(fechaServer,fechaBoletin)
+--hostDate = os.time{day=15, year=2017, month=2}
+--bulletinDate = os.time{day=15, year=2016, month=2}
+--hostUpdated(hostDate,bulletinDate)
 --Devuelve true
-function serverActualizado(fechaServer, fechaBoletin)
-  return os.difftime(fechaServer, fechaBoletin) >= 0
+function hostUpdated(hostDate, bulletinDate)
+  return os.difftime(hostDate, bulletinDate) >= 0
 end
 
 -- Función que dada una URL de boletín de Microsoft extrae la fecha más reciente.
-function getDate(url)
+function extractLastDate(url)
   local urlBody = http.get_url(url).body
   
   -- Se saca la fecha de la web.
-  local pubDate = string.match(urlBody, "[Pp]ublished:%s(%a+%s%d+,%s%d+)")
-  local updDate = string.match(urlBody, "[Uu]pdated:%s(%a+%s%d+,%s%d+)")
+  local pubDate = string.match(urlBody, "Published:%s(%a+%s%d+,%s%d+)")
+  local updDate = string.match(urlBody, "Updated:%s(%a+%s%d+,%s%d+)")
   
   if updDate then
-    return toDate(updDate)
+    return updDate
   else
-    return toDate(pubDate)
+    return pubDate
   end
 end
 
--- Code added for parsing csv
--- Usage: 
+
+---
+-- Funciones para el CSV.
+---
+
+
+-- Parseo del CSV.
 --
+-- Usage example: 
 -- local file = "vulns.csv" 
 -- local lineas = readCsv(file)
--- for i, v in ipairs(lineas) do print(i, v[5]) end
--- -- dates are 5
--- print(lineas[2][5])
+-- for i, v in pairs(lineas) do print(i, v.bulletinId) end
 function readCsv(file)
-  local lIt = assert(io.lines(file))
-  local values = {}
+  local csv = {}
   
-  for l in lIt do
+  for l in assert(io.lines(file)) do
     local vuln = {}
+    local vulnIt = string.gmatch(l, "[^;]+")
     
-    for v in string.gmatch(l, "[^;]+") do
-      table.insert(vuln, v)
-    end
+    vuln.bulletinId = vulnIt()
+    vuln.severity = vulnIt()
+    vuln.restartRequired = vulnIt()
+    vuln.link = vulnIt()
+    vuln.lastUpdated = vulnIt()
+    vuln.summary = vulnIt()
     
-    table.insert(values, vuln)
+    table.insert(csv, vuln)
   end
   
-  return values
+  return csv
+end
+
+function updateCsv(csv)
+  for i, vuln in pairs(csv) do
+    if i > 1 then
+      lastDate = extractLastDate(vuln.link)
+      stdnse.debug("%s CSV last updated date: %s, Microsoft's bulletin last updated date: %s",
+        vuln.bulletinId, vuln.lastUpdated, lastDate)
+        
+      vuln.lastUpdated = lastDate or vuln.lastUpdated
+    end
+  end
+end
+
+function writeCsv(csv, file)
+  local f = assert(io.open(file, "w"))
+
+  for i, vuln in pairs(csv) do
+    f:write(vuln.bulletinId, ";", vuln.severity, ";", vuln.restartRequired, ";", vuln.link,
+      ";", vuln.lastUpdated, ";", vuln.summary, "\n")
+  end
+  
+  f:close()
 end
